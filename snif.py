@@ -131,7 +131,8 @@ def async_geo_lookup(ip):
 
 # -------------------- Database setup --------------------
 def init_db(db_path):
-    conn = sqlite3.connect(db_path, check_same_thread=False)
+    # Added timeout to avoid "database is locked" under concurrent writes
+    conn = sqlite3.connect(db_path, check_same_thread=False, timeout=10)
     cur = conn.cursor()
     cur.execute("""CREATE TABLE IF NOT EXISTS connections (
         from_ip TEXT,
@@ -155,14 +156,24 @@ def init_db(db_path):
     return conn
 
 def update_db(conn, from_ip, to_ip, to_host, proto):
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO connections (from_ip, to_ip, to_host, proto, total_packets)
-        VALUES (?, ?, ?, ?, 1)
-        ON CONFLICT(from_ip, to_ip, proto)
-        DO UPDATE SET total_packets = total_packets + 1
-    """, (from_ip, to_ip, to_host, proto))
-    conn.commit()
+    """Insert or update connection record with retry on database lock."""
+    for attempt in range(5):  # retry several times on lock
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO connections (from_ip, to_ip, to_host, proto, total_packets)
+                VALUES (?, ?, ?, ?, 1)
+                ON CONFLICT(from_ip, to_ip, proto)
+                DO UPDATE SET total_packets = total_packets + 1
+            """, (from_ip, to_ip, to_host, proto))
+            conn.commit()
+            return
+        except sqlite3.OperationalError as e:
+            if "database is locked" in str(e).lower():
+                time.sleep(0.1 * (attempt + 1))  # small backoff
+                continue
+            else:
+                raise
 
 # -------------------- Flask web UI (HUD) --------------------
 app = Flask(__name__)
