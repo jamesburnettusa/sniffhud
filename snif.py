@@ -24,6 +24,7 @@ geo_cache = {}
 DB_CONN = None
 IPINFO_HANDLER = None
 USER_COUNTRY = "US"  # default country code
+FROM_IP_FILTER = None  # <--- added global variable
 
 # -------------------- Helpers --------------------
 def is_local_ip(ip: str) -> bool:
@@ -131,7 +132,6 @@ def async_geo_lookup(ip):
 
 # -------------------- Database setup --------------------
 def init_db(db_path):
-    # Added timeout to avoid "database is locked" under concurrent writes
     conn = sqlite3.connect(db_path, check_same_thread=False, timeout=10)
     cur = conn.cursor()
     cur.execute("""CREATE TABLE IF NOT EXISTS connections (
@@ -157,7 +157,7 @@ def init_db(db_path):
 
 def update_db(conn, from_ip, to_ip, to_host, proto):
     """Insert or update connection record with retry on database lock."""
-    for attempt in range(5):  # retry several times on lock
+    for attempt in range(5):
         try:
             cur = conn.cursor()
             cur.execute("""
@@ -170,7 +170,7 @@ def update_db(conn, from_ip, to_ip, to_host, proto):
             return
         except sqlite3.OperationalError as e:
             if "database is locked" in str(e).lower():
-                time.sleep(0.1 * (attempt + 1))  # small backoff
+                time.sleep(0.1 * (attempt + 1))
                 continue
             else:
                 raise
@@ -339,6 +339,10 @@ def db_worker(q,stop_event,conn,proto_filter):
             proto,src,dst=q.get(timeout=0.5)
             if proto_filter == "tcp" and proto.upper() != "TCP": q.task_done(); continue
             if proto_filter == "udp" and proto.upper() != "UDP": q.task_done(); continue
+            # --- new filter ---
+            if FROM_IP_FILTER and src != FROM_IP_FILTER:
+                q.task_done()
+                continue
             host=async_reverse_dns(dst)
             _=async_geo_lookup(dst)
             update_db(conn,src,dst,host,proto)
@@ -348,18 +352,23 @@ def db_worker(q,stop_event,conn,proto_filter):
 
 # -------------------- Main --------------------
 def main():
-    global DB_CONN, IPINFO_HANDLER, USER_COUNTRY
+    global DB_CONN, IPINFO_HANDLER, USER_COUNTRY, FROM_IP_FILTER
     parser=argparse.ArgumentParser(description="snif HUD v1.8-pre")
     parser.add_argument("--iface",default=None,help="Interface to sniff on")
     parser.add_argument("--db",default="connections.db",help="SQLite DB path")
     parser.add_argument("--ipinfo-token",default=None,help="Optional ipinfo token")
     parser.add_argument("--filter",choices=["tcp","udp","both"],default="tcp",help="Protocol filter (default tcp)")
     parser.add_argument("--country-code",default="US",help="Your country code (default US)")
+    parser.add_argument("--from-ip",default=None,help="Only log connections from this source IP")
     args=parser.parse_args()
 
     USER_COUNTRY = args.country_code.upper()
     DB_CONN = init_db(args.db)
     IPINFO_HANDLER = ipinfo.getHandler(args.ipinfo_token) if args.ipinfo_token else ipinfo.getHandler()
+
+    FROM_IP_FILTER = args.from_ip
+    if FROM_IP_FILTER:
+        print(f"[INFO] Logging only connections from {FROM_IP_FILTER}")
 
     q=queue.Queue(maxsize=10000)
     stop_event=threading.Event()
