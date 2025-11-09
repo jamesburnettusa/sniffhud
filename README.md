@@ -1,83 +1,85 @@
-# snifhud
-A real-time network connection monitor with a live web HUD, reverse DNS, and GeoIP country highlighting.
+# SniffHud
 
-# 🕵️ snif.py — HUD-Style Network Sniffer
-
-`snif.py` v1.8-pre is a Python-based **network sniffer** with a built-in **web dashboard (HUD)**.It shows live network traffic, performs **reverse DNS lookups**, **GeoIP country detection**, and highlights traffic **not from your country**.
-
-The web UI provides interactive filters and quick links to WHOIS, Shodan, AbuseIPDB, and Geo lookup pages.
-
-![snifHUD Screenshot](https://jamesburnettusa.com/wp-content/uploads/2025/10/snifHUD-screenshot.jpg)
+**SniffHud** is a real-time network monitoring tool designed to detect, track, and highlight potentially privacy-invasive connections on your network. This tool provides detailed insights into network traffic, DNS lookups, and geolocation information for destination IPs, all while keeping sensitive data handling transparent and privacy-conscious.
 
 ---
 
-## 🚀 Features
+## Table of Contents
 
-- Real-time packet capture (TCP and UDP)
-- Reverse DNS resolution (asynchronous)
-- GeoIP lookup via [ipinfo.io](https://ipinfo.io/)
-- SQLite caching for hostnames and country codes
-- Flask web interface for monitoring traffic
-- Highlight foreign traffic based on your country code
-- Clickable filters (FROM_IP / TO_IP / protocol)
-- External lookup links:
-  - [iplocation.net](https://www.iplocation.net/)
-  - [bgp.he.net](https://bgp.he.net/)
-  - [abuseipdb.com](https://www.abuseipdb.com/)
-  - [shodan.io](https://www.shodan.io/)
+- [Features](#features)   
+- [Installation](#installation)  
+- [Usage](#usage)  
+- [Configuration](#configuration)  
+- [License](#license)  
 
 ---
 
-## 🧩 Installation
+## Features
 
-### 1. Install system dependencies
-You need `libpcap` for Scapy to capture packets.
+- **Real-time Packet Capture**: Monitors both IPv4 and IPv6 traffic on a specified network interface.  
+- **DNS Resolution**: Performs reverse DNS lookups to identify destination hostnames.  
+- **IP Information Lookup**: Uses `ipinfo.io` (optionally with a token) to fetch country and organization info for destination IPs.  
+- **Blacklist Detection**: Flags connections to known malicious or suspicious domains using customizable blacklists.  
+- **Interactive Terminal UI**: Displays captured data in a curses-based interface, highlighting suspicious or foreign traffic.  
+- **Packet Classification**: Prioritizes potentially malicious or non-US traffic and displays it in an easy-to-read table.  
+- **Caching**: Caches IP information locally to minimize repeated network requests and protect privacy.  
 
-On **Debian/Ubuntu**:
+
+---
+
+## Installation
+
+1. Clone the repository:
+
 ```bash
-sudo apt install python3-pip python3-scapy libpcap-dev
+git clone https://github.com/jamesburnettusa/sniffhud.git
+cd sniffhud
 ```
 
+2. Install dependencies (Linux):
 
-On **Fedora**:
 ```bash
-sudo dnf install python3-pip python3-scapy libpcap-devel
+pip install pcapy dpkt requests
 ```
 
+> **Note:** You must run the program with sufficient privileges to capture packets (e.g., using `sudo` on Linux).  
 
+---
 
-### 2. Install Python dependencies
+## Usage
+
 ```bash
-sudo pip install flask scapy ipinfo
+python sniffhud.py -i <network_interface> [-s <src_ip>] [-o <origin_country>] [-ip <ipinfo_token>]
 ```
 
-### 3. Usage
+### Example:
+
 ```bash
-sudo python3 snif.py [options]
+sudo python sniffhud.py -i eth0 -o US
 ```
 
-### Command-line Arguments
+- `-i / --iface`: Network interface to capture packets from. **Required**.  
+- `-s / --src-ip`: Optional. Only monitor traffic from a specific source IP.  
+- `-o / --origin-country`: Set your origin country code (default: `US`). Traffic from non-US hosts is highlighted.  
+- `-ip / --token`: Optional ipinfo.io token for enhanced IP geolocation.  
 
-| Argument | Description | Default |
-|-----------|--------------|----------|
-| `--iface` | Network interface to sniff on (e.g., `eth0`, `wlan0`). | System default |
-| `--db` | SQLite database file path for caching and connections. | `connections.db` |
-| `--ipinfo-token` | Optional [ipinfo.io](https://ipinfo.io/) API token for GeoIP lookups. | None |
-| `--filter` | Protocol filter: `tcp`, `udp`, or `both`. | `tcp` |
-| `--country-code` | Your ISO 2-letter country code for highlighting foreign traffic. | `US` |
+---
 
-### Examples
-Sniff TCP traffic on interface eth0:
-```bash
-sudo python3 snif.py --iface eth0
-```
+## Configuration
 
-Sniff both TCP and UDP traffic, highlighting non-Canadian traffic:
-```bash
-sudo python3 snif.py --iface eth0 --filter both --country-code CA
-```
+- **Blacklists**: Place URLs of blacklist text files in `blacklists.txt`, one per line. Each URL should point to a plain text file containing domain names to block or monitor.  
 
-Use an API token for more accurate GeoIP results:
-```bash
-sudo python3 snif.py --ipinfo-token <YOUR_TOKEN>
-```
+- **Color Codes in UI**:  
+  - **Red** → Potentially malicious host (found in blacklist).  
+  - **Yellow** → Non-US traffic.  
+  - **Normal** → Local/US traffic.  
+
+---
+
+## License
+
+This project is licensed under the MIT License. See `LICENSE` for more details.  
+
+---
+
+**Disclaimer:** SniffHud is intended for network monitoring and educational purposes. Ensure you have permission to monitor network traffic on any network where you deploy this tool.
