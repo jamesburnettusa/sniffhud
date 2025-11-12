@@ -21,7 +21,7 @@ update_queue = queue.Queue()
 data = []
 data_lock = threading.RLock()
 blacklist_set = set()
-column_widths = [20, 20, 20, 20, 6, 4, 6, 4,4]
+column_widths = [16, 16, 20, 16, 6, 4, 6, 4,4,50]
 blacklist_entries = 0
 seen_rows = set()
 
@@ -119,7 +119,7 @@ def get_ipinfo():
             if cached:
                 country = cached.get("country")
                 org = cached.get("org")
-                queue_update_ipinfo(dst_ip, country)
+                queue_update_ipinfo(dst_ip, country,org)
                 #print("Used IP Info Cache")
                 continue
 
@@ -145,7 +145,7 @@ def get_ipinfo():
                 except Exception as e:
                     print(e)
 
-                queue_update_ipinfo(dst_ip, country)
+                queue_update_ipinfo(dst_ip, country,org)
 
             except Exception as e:
                 print(e)
@@ -311,7 +311,7 @@ def load_blacklists():
 
         print("BL Len", len(blacklist_set))
         
-def queue_update_ipinfo(dst_ip, coo):
+def queue_update_ipinfo(dst_ip, coo,org):
     """
     Update only the COO field for rows matching the given dst_ip.
     """
@@ -320,6 +320,7 @@ def queue_update_ipinfo(dst_ip, coo):
         if row_key[1] == dst_ip:
             # Update DST_HOST while keeping the column width consistent
             row["COO"] = str(coo)[:column_widths[7]].ljust(column_widths[7])            
+            row["ORG"] = str(org)[-column_widths[9]:].rjust(column_widths[9])            
             # Re-put updated row in the queue
             update_queue.put(row)
 
@@ -331,13 +332,14 @@ def queue_update_dst_host(dst_ip, dst_host,dns_src,mal):
         # row_key = (src_ip, dst_ip, proto), so check the second element
         if row_key[1] == dst_ip:
             # Update DST_HOST while keeping the column width consistent
-            row["DST_HOST"] = str(dst_host)[:column_widths[2]].ljust(column_widths[2])
+            #row["DST_HOST"] = str(dst_host)[:column_widths[2]].rjust(column_widths[2])
+            row["DST_HOST"] = str(dst_host)[-column_widths[2]:].rjust(column_widths[2]) 
             row["DNS_SRC"] = str(dns_src)[:column_widths[3]].ljust(column_widths[3])
             row["MAL"] = str(mal)[:column_widths[8]].ljust(column_widths[8])
             # Re-put updated row in the queue
             update_queue.put(row)
             
-def queue_update(src_ip, dst_ip, dst_host="", dns_src="", proto="", dst_port=0, bytes_val=0, coo="",mal=0):
+def queue_update(src_ip, dst_ip, dst_host="", dns_src="", proto="", dst_port=0, bytes_val=0, coo="",mal=0,org=""):
     # Create a unique key for this row
     row_key = (src_ip, dst_ip, proto)
 
@@ -351,7 +353,8 @@ def queue_update(src_ip, dst_ip, dst_host="", dns_src="", proto="", dst_port=0, 
         
         # Optionally update other fields if needed
         if dst_host:
-            existing_row["DST_HOST"] = str(dst_host)[:column_widths[2]].ljust(column_widths[2])
+            #existing_row["DST_HOST"] = str(dst_host)[:column_widths[2]].ljust(column_widths[2])
+            existing_row["DST_HOST"] = str(dst_host)[-column_widths[2]:].rjust(column_widths[2]) 
         if dns_src:
             existing_row["DNS_SRC"] = str(dns_src)[:column_widths[3]].ljust(column_widths[3])
         if dst_port:
@@ -360,6 +363,8 @@ def queue_update(src_ip, dst_ip, dst_host="", dns_src="", proto="", dst_port=0, 
             existing_row["COO"] = str(coo)[:column_widths[7]].ljust(column_widths[7])
         if mal:
             existing_row["MAL"] = str(mal)[:column_widths[8]].ljust(column_widths[8])
+        if org:
+            existing_row["ORG"] = str(org)[-column_widths[9]:].rjust(column_widths[9])
         
         # Re-put updated row in the queue
         update_queue.put(existing_row)
@@ -368,13 +373,14 @@ def queue_update(src_ip, dst_ip, dst_host="", dns_src="", proto="", dst_port=0, 
         data = {
             "SRC_IP": str(src_ip)[:column_widths[0]].ljust(column_widths[0]),
             "DST_IP": str(dst_ip)[:column_widths[1]].ljust(column_widths[1]),
-            "DST_HOST": str(dst_host)[:column_widths[2]].ljust(column_widths[2]),
+            "DST_HOST": str(dst_host)[:column_widths[2]].rjust(column_widths[2]),
             "DNS_SRC": str(dns_src)[:column_widths[3]].ljust(column_widths[3]),
             "PROTO": str(proto)[:column_widths[4]].ljust(column_widths[4]),
             "PORT": str(bytes_val).rjust(column_widths[5]),
             "PKTS": str(bytes_val).rjust(column_widths[6]),
             "COO": str(coo)[:column_widths[6]].ljust(column_widths[7]),
             "MAL": str(mal)[:column_widths[7]].ljust(column_widths[8]),
+            "ORG": str(org)[:column_widths[8]].rjust(column_widths[8]),
         }
         rows_dict[row_key] = data
         update_queue.put(data)
@@ -443,7 +449,8 @@ def update_rows(screen):
                 row["PORT"],
                 row["PKTS"],
                 row["COO"],
-                row["MAL"])
+                row["MAL"],
+                row["ORG"])
 
 
 def add_test_rows():
@@ -456,7 +463,7 @@ def add_test_rows():
     queue_update("192.168.1.3", "1.1.1.1", dst_host="cloudflare.com",
                  dns_src="192.168.1.1", proto="UDP", bytes_val=512, coo="OK")
 
-def add_row(screen, row_num, src_ip, dst_ip, dst_host, dns_src, proto, dst_port, bytes_val, coo,mal):
+def add_row(screen, row_num, src_ip, dst_ip, dst_host, dns_src, proto, dst_port, bytes_val, coo,mal,org):
     """
     Add a single row of data to the screen at row number `row_num`.
     Highlights the row orange if COO is not 'US'.
@@ -472,7 +479,7 @@ def add_row(screen, row_num, src_ip, dst_ip, dst_host, dns_src, proto, dst_port,
         
     
     # List of column values in order
-    cols = [src_ip, dst_ip, dst_host, dns_src, proto, dst_port,str(bytes_val), str(coo),str(mal)]
+    cols = [src_ip, dst_ip, dst_host, dns_src, proto, dst_port,str(bytes_val), str(coo),str(mal),str(org)]
 
     # Draw each column
     try:
@@ -514,7 +521,7 @@ def set_header(screen):
 
     # Define column headers
 
-        headers = ["SRC_IP", "DST_IP", "DST_HOST", "DNS_SRC" ,"PROTO","PORT", "PKTS", "COO","MAL"]
+        headers = ["SRC_IP", "DST_IP", "DST_HOST", "DNS_SRC" ,"PROTO","PORT", "PKTS", "COO","MAL","ORG"]
 
     
     # Draw the header row
