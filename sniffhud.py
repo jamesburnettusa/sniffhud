@@ -21,7 +21,7 @@ update_queue = queue.Queue()
 data = []
 data_lock = threading.RLock()
 blacklist_set = set()
-column_widths = [20, 20, 20, 20, 6, 8, 4,4]
+column_widths = [20, 20, 20, 20, 6, 4, 6, 4,4]
 blacklist_entries = 0
 seen_rows = set()
 
@@ -162,6 +162,8 @@ def packet_capture():
         global blacklist_set
         try:
             src_ip = dst_ip = proto_str = None
+            src_port = dst_port = 0
+
             if len(data) < eth_length:
                 return
 
@@ -203,8 +205,7 @@ def packet_capture():
                 if args.src_ip is not None and src_ip is not None and args.src_ip not in src_ip:
                     xxx=0
                 else:
-  
-                    queue_update(src_ip, dst_ip, proto=proto_str, bytes_val=1)
+                    queue_update(src_ip, dst_ip, dst_port=dst_port,proto=proto_str, bytes_val=1)
 
             # ---- DNS Detection ----
             dns_data = None
@@ -318,7 +319,7 @@ def queue_update_ipinfo(dst_ip, coo):
         # row_key = (src_ip, dst_ip, proto), so check the second element
         if row_key[1] == dst_ip:
             # Update DST_HOST while keeping the column width consistent
-            row["COO"] = str(coo)[:column_widths[6]].ljust(column_widths[6])            
+            row["COO"] = str(coo)[:column_widths[7]].ljust(column_widths[7])            
             # Re-put updated row in the queue
             update_queue.put(row)
 
@@ -332,11 +333,11 @@ def queue_update_dst_host(dst_ip, dst_host,dns_src,mal):
             # Update DST_HOST while keeping the column width consistent
             row["DST_HOST"] = str(dst_host)[:column_widths[2]].ljust(column_widths[2])
             row["DNS_SRC"] = str(dns_src)[:column_widths[3]].ljust(column_widths[3])
-            row["MAL"] = str(mal)[:column_widths[7]].ljust(column_widths[7])
+            row["MAL"] = str(mal)[:column_widths[8]].ljust(column_widths[8])
             # Re-put updated row in the queue
             update_queue.put(row)
             
-def queue_update(src_ip, dst_ip, dst_host="", dns_src="", proto="", bytes_val=0.0, coo="",mal=0):
+def queue_update(src_ip, dst_ip, dst_host="", dns_src="", proto="", dst_port=0, bytes_val=0, coo="",mal=0):
     # Create a unique key for this row
     row_key = (src_ip, dst_ip, proto)
 
@@ -353,10 +354,12 @@ def queue_update(src_ip, dst_ip, dst_host="", dns_src="", proto="", bytes_val=0.
             existing_row["DST_HOST"] = str(dst_host)[:column_widths[2]].ljust(column_widths[2])
         if dns_src:
             existing_row["DNS_SRC"] = str(dns_src)[:column_widths[3]].ljust(column_widths[3])
+        if dst_port:
+            existing_row["PORT"] = str(dst_port)[:column_widths[5]].ljust(column_widths[5])
         if coo:
-            existing_row["COO"] = str(coo)[:column_widths[6]].ljust(column_widths[6])
+            existing_row["COO"] = str(coo)[:column_widths[7]].ljust(column_widths[7])
         if mal:
-            existing_row["MAL"] = str(mal)[:column_widths[7]].ljust(column_widths[7])
+            existing_row["MAL"] = str(mal)[:column_widths[8]].ljust(column_widths[8])
         
         # Re-put updated row in the queue
         update_queue.put(existing_row)
@@ -368,9 +371,10 @@ def queue_update(src_ip, dst_ip, dst_host="", dns_src="", proto="", bytes_val=0.
             "DST_HOST": str(dst_host)[:column_widths[2]].ljust(column_widths[2]),
             "DNS_SRC": str(dns_src)[:column_widths[3]].ljust(column_widths[3]),
             "PROTO": str(proto)[:column_widths[4]].ljust(column_widths[4]),
-            "PKTS": str(bytes_val).rjust(column_widths[5]),
-            "COO": str(coo)[:column_widths[6]].ljust(column_widths[6]),
-            "MAL": str(mal)[:column_widths[7]].ljust(column_widths[7]),
+            "PORT": str(bytes_val).rjust(column_widths[5]),
+            "PKTS": str(bytes_val).rjust(column_widths[6]),
+            "COO": str(coo)[:column_widths[6]].ljust(column_widths[7]),
+            "MAL": str(mal)[:column_widths[7]].ljust(column_widths[8]),
         }
         rows_dict[row_key] = data
         update_queue.put(data)
@@ -436,6 +440,7 @@ def update_rows(screen):
                 row["DST_HOST"],
                 row["DNS_SRC"],
                 row["PROTO"],
+                row["PORT"],
                 row["PKTS"],
                 row["COO"],
                 row["MAL"])
@@ -451,7 +456,7 @@ def add_test_rows():
     queue_update("192.168.1.3", "1.1.1.1", dst_host="cloudflare.com",
                  dns_src="192.168.1.1", proto="UDP", bytes_val=512, coo="OK")
 
-def add_row(screen, row_num, src_ip, dst_ip, dst_host, dns_src, proto, bytes_val, coo,mal):
+def add_row(screen, row_num, src_ip, dst_ip, dst_host, dns_src, proto, dst_port, bytes_val, coo,mal):
     """
     Add a single row of data to the screen at row number `row_num`.
     Highlights the row orange if COO is not 'US'.
@@ -467,7 +472,7 @@ def add_row(screen, row_num, src_ip, dst_ip, dst_host, dns_src, proto, bytes_val
         
     
     # List of column values in order
-    cols = [src_ip, dst_ip, dst_host, dns_src, proto, str(bytes_val), str(coo),str(mal)]
+    cols = [src_ip, dst_ip, dst_host, dns_src, proto, dst_port,str(bytes_val), str(coo),str(mal)]
 
     # Draw each column
     try:
@@ -509,7 +514,7 @@ def set_header(screen):
 
     # Define column headers
 
-        headers = ["SRC_IP", "DST_IP", "DST_HOST", "DNS_SRC" ,"PROTO", "PKTS", "COO","MAL"]
+        headers = ["SRC_IP", "DST_IP", "DST_HOST", "DNS_SRC" ,"PROTO","PORT", "PKTS", "COO","MAL"]
 
     
     # Draw the header row
