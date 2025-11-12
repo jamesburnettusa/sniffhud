@@ -21,7 +21,7 @@ update_queue = queue.Queue()
 data = []
 data_lock = threading.RLock()
 blacklist_set = set()
-column_widths = [30, 30, 30, 30, 6, 8, 4,4]
+column_widths = [20, 20, 20, 20, 6, 8, 4,4]
 blacklist_entries = 0
 seen_rows = set()
 
@@ -120,7 +120,7 @@ def get_ipinfo():
                 country = cached.get("country")
                 org = cached.get("org")
                 queue_update_ipinfo(dst_ip, country)
-                print("Used IP Info Cache")
+                #print("Used IP Info Cache")
                 continue
 
             # Not cached, fetch from ipinfo.io
@@ -284,7 +284,7 @@ def set_args():
         if args.iface is None:
             exit("--iface(-i) required. Specific network interface.")
     except Exception as e:
-        print(e)
+        print("set_args",e)
         
 def load_blacklists():
     global blacklist_set
@@ -482,37 +482,45 @@ def add_row(screen, row_num, src_ip, dst_ip, dst_host, dns_src, proto, bytes_val
 
 def set_defaults(screen):
     global blacklist_entries
-    curses.curs_set(0)
-    screen.clear()
+    try:
+        curses.curs_set(0)
+        screen.clear()
 
     # Optional: enable color and bold text
-    curses.start_color()
-    curses.use_default_colors()
+        curses.start_color()
+        curses.use_default_colors()
 
-    curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_CYAN)
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_CYAN)
        
-    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_YELLOW)
+        curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_YELLOW)
 
-    curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_RED)
+        curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_RED)
+    except Exception as e:
+        print("set_defaults",e)
     
 def set_header(screen):
+    try: 
     #header_style = curses.color_pair(1) | curses.A_BOLD
-    header_style = curses.A_BOLD
-    normal_style = curses.A_NORMAL
+        header_style = curses.A_BOLD
+        normal_style = curses.A_NORMAL
 
-    info_text = f"Black List Entries: {blacklist_entries}"
-    screen.addstr(0, 0, info_text, header_style)
+        info_text = f"Black List Entries: {blacklist_entries}"
+        screen.addstr(0, 0, info_text, header_style)
 
     # Define column headers
 
-    headers = ["SRC_IP", "DST_IP", "DST_HOST", "DNS_SRC" ,"PROTO", "PKTS", "COO","MAL"]
+        headers = ["SRC_IP", "DST_IP", "DST_HOST", "DNS_SRC" ,"PROTO", "PKTS", "COO","MAL"]
 
     
     # Draw the header row
-    x = 0
-    for i, col in enumerate(headers):
-        screen.addstr(1, x, col.ljust(column_widths[i]), header_style)
-        x += column_widths[i] + 1
+        x = 0
+        for i, col in enumerate(headers):
+            screen.addstr(1, x, col.ljust(column_widths[i]), header_style)
+            x += column_widths[i] + 1
+    except Exception as e:
+        print("set_header",e)
+        traceback.print_exc()
+
 
 
 if __name__ == "__main__":
