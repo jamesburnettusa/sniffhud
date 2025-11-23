@@ -489,7 +489,7 @@ def add_row(screen, row_num, src_ip, dst_ip, dst_host, dns_src, proto, dst_port,
             x += column_widths[i] + 1
     except curses.error:
         pass
-
+    set_header(screen)
     screen.refresh()
 
 def set_defaults(screen):
@@ -516,7 +516,7 @@ def set_header(screen):
         header_style = curses.A_BOLD
         normal_style = curses.A_NORMAL
 
-        info_text = f"Black List Entries: {blacklist_entries}"
+        info_text = f"Black List Entries: {blacklist_entries}    Connections: {len(data)}"
         screen.addstr(0, 0, info_text, header_style)
 
     # Define column headers
